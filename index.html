@@ -64,6 +64,11 @@ td.shifthead{
 td.cell{ padding:0; font-size:11px; min-width:100px; height:34px; }
 td.cell.empty{ color:var(--muted); opacity:0.35; padding:6px 3px; text-align:center; }
 td.total-cell{ background:var(--panel); font-weight:700; height:34px; padding:0; }
+td.target-cell{ background:var(--panel); font-weight:700; height:34px; padding:0; }
+td.target-cell.empty{ color:var(--muted); opacity:0.35; padding:6px 10px; text-align:center; font-weight:600; font-size:11.5px; }
+tr.combine-row td.daily-total-head{ font-style:italic; color:var(--steel); }
+tr.combine-row td{ background:var(--panel-2); }
+tr.combine-row td.target-cell{ background-blend-mode:normal; }
 td.total-cell.empty{ padding:6px 3px; text-align:center; }
 
 .split-row{ display:flex; align-items:center; justify-content:space-between; height:100%; padding:0 8px; gap:6px; }
@@ -153,6 +158,10 @@ const SOURCES = [
   { key:'briquettes', label:'Briquettes Line Factory 2',           target:32000, url:'https://docs.google.com/spreadsheets/d/e/2PACX-1vTSFb8mibeLxtTRWAllYDxiUr6RT0ezSeMRxvEObufk-EIKTQjibnLq9R3d4hbQcDbIf9fvkbmm-TDK/pub?gid=1694376471&single=true&output=csv', cols:{week:0,date:1,shift:2,val:4} },
 ];
 
+// Wide-format weekly targets sheet: one row per week, one column per line.
+// Fill this in once you have the published CSV link for that tab.
+const WEEKLY_TARGETS_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTSFb8mibeLxtTRWAllYDxiUr6RT0ezSeMRxvEObufk-EIKTQjibnLq9R3d4hbQcDbIf9fvkbmm-TDK/pub?gid=581369485&single=true&output=csv';
+
 const GROUP_ORDER = [
   { key:'screaning',   label:'F1 - Screening Charcoal Dust',     target:15000 },
   { key:'cruiser',     label:'F1 - Crusher Candle Nut Charcoal', target:8000  },
@@ -207,6 +216,59 @@ async function fetchCsvRows(url){
   const text = await res.text();
   const parsed = Papa.parse(text, {skipEmptyLines:false});
   return parsed.data;
+}
+
+// Maps a header cell like "Screening" / "Crushing Candle Nut" / "Ready Mix"
+// to our internal line keys. "readymix" is the COMBINED target for both
+// Ready Mix lines together, not split per sub-line.
+function headerToTargetKey(h){
+  const s = (h||'').toString().trim().toLowerCase();
+  if(!s) return null;
+  if(s.includes('screen')) return 'screaning';
+  if(s.includes('ready mix') || s.includes('readymix')) return 'readymix';
+  if(s.includes('briquette')) return 'briquettes';
+  if(s.includes('crush') || s.includes('candle')) return 'cruiser';
+  if(s.includes('wood')) return 'woodline';
+  return null;
+}
+
+function parseTargetNumber(raw){
+  if(raw===undefined || raw===null) return null;
+  const s = raw.toString().trim().replace(/,/g,'');
+  if(s==='') return null;
+  const n = parseFloat(s);
+  return isNaN(n) ? null : n;
+}
+
+// Parses the wide-format Weekly Targets tab: one row per week, one column
+// per line. Returns { week: { screaning, cruiser, woodline, briquettes, readymix } }
+function parseWeeklyTargets(rows){
+  const out = {};
+  if(!rows || rows.length===0) return out;
+  let headerIdx = -1;
+  for(let i=0;i<rows.length;i++){
+    const cell = (rows[i][0]||'').toString().trim().toLowerCase();
+    if(cell==='week'){ headerIdx = i; break; }
+  }
+  if(headerIdx===-1) return out;
+  const header = rows[headerIdx];
+  const colMap = {}; // colIndex -> targetKey
+  for(let c=1;c<header.length;c++){
+    const key = headerToTargetKey(header[c]);
+    if(key) colMap[c] = key;
+  }
+  for(let i=headerIdx+1;i<rows.length;i++){
+    const r = rows[i];
+    if(!r || r.length===0) continue;
+    const week = parseInt((r[0]||'').toString().trim());
+    if(isNaN(week)) continue;
+    out[week] = out[week] || {};
+    for(const c of Object.keys(colMap)){
+      const val = parseTargetNumber(r[c]);
+      if(val!==null) out[week][colMap[c]] = val;
+    }
+  }
+  return out;
 }
 
 function processSource(source, rows, out){
@@ -335,6 +397,16 @@ async function loadData(){
       console.error('Failed to load', source.key, e);
     }
   }
+  let weeklyTargets = {};
+  if(WEEKLY_TARGETS_URL){
+    try{
+      const targetRows = await fetchCsvRows(WEEKLY_TARGETS_URL);
+      weeklyTargets = parseWeeklyTargets(targetRows);
+    }catch(e){
+      failed.push('WeeklyTargets');
+      console.error('Failed to load weekly targets', e);
+    }
+  }
   refreshBtn.classList.remove('spinning');
   if(allRows.length===0){
     statusBar.className = 'error';
@@ -342,6 +414,7 @@ async function loadData(){
     return;
   }
   DATA = buildData(allRows);
+  DATA.weeklyTargets = weeklyTargets;
   if(failed.length){
     statusBar.className = 'error';
     statusBar.textContent = 'Loaded, but could not reach: ' + failed.join(', ') + ' — showing the other lines only.';
@@ -387,11 +460,13 @@ function render(){
   const htr = document.createElement('tr');
   htr.innerHTML = `<th colspan="2" style="min-width:230px;">MACHINE / SHIFT</th>` +
     days.map(d=>`<th><span class="dow">${dowShort(d)}</span><span class="dd">${ddShort(d)}</span></th>`).join('') +
-    `<th class="total-head">WEEK<br>TOTAL</th>`;
+    `<th class="total-head">WEEK<br>TOTAL</th>` +
+    `<th class="total-head">WEEKLY<br>TARGET</th>`;
   thead.appendChild(htr);
   table.appendChild(thead);
 
   const tbody = document.createElement('tbody');
+  const groupWeekSums = {};
 
   DATA.groups.forEach((g, gi)=>{
     const cellsForGroup = DATA.cells[String(w)][g.key] || {};
@@ -431,6 +506,9 @@ function render(){
       } else {
         rowHtml += `<td class="total-cell empty">&mdash;</td>`;
       }
+      // Weekly Target is a line-level concept (real management target),
+      // not a per-shift one — only the Daily Total / combined rows show it.
+      rowHtml += `<td class="target-cell empty">&mdash;</td>`;
 
       tr.innerHTML = rowHtml;
       tbody.appendChild(tr);
@@ -441,12 +519,14 @@ function render(){
     trTotal.className = 'daily-total-row';
     let totalRowHtml = `<td class="daily-total-head" colspan="2">Daily Total</td>`;
     let weekSum = 0, weekShiftCount = 0;
+    const dayVals = {}; // day -> sum, kept for the Ready Mix combine step below
     days.forEach(day=>{
       let daySum = 0, dayCount = 0;
       [1,2,3].forEach(shift=>{
         const rec = (cellsForGroup[String(shift)] || {})[day];
         if(rec){ daySum += rec.value; dayCount++; }
       });
+      dayVals[day] = daySum;
       if(dayCount>0){
         const dayPct = Math.round((daySum/(g.target*dayCount))*1000)/10;
         weekSum += daySum; weekShiftCount += dayCount;
@@ -473,14 +553,70 @@ function render(){
     } else {
       totalRowHtml += `<td class="total-cell daily-total-cell empty">&mdash;</td>`;
     }
+
+    // Weekly Target: real management figure from the WeeklyTargets sheet.
+    // Ready Mix Line 1 / Line 2 don't get an individual target — theirs is
+    // combined into the "Ready Mix Total" row added right after Line 2.
+    const targetKey = (g.key==='readymix_l1' || g.key==='readymix_l2') ? null : g.key;
+    const weekTargets = (DATA.weeklyTargets && DATA.weeklyTargets[w]) || {};
+    const realTarget = targetKey ? weekTargets[targetKey] : undefined;
+    if(realTarget !== undefined && realTarget !== null){
+      const achievePct = Math.round((weekSum/realTarget)*1000)/10;
+      totalRowHtml += `<td class="target-cell daily-total-cell" style="background:${bandBgSolid(achievePct)};">
+        <div class="split-row">
+          <span class="split-val" style="color:${bandText(achievePct)}">${fmt(realTarget)}</span>
+          <span class="split-div"></span>
+          <span class="split-pct" style="color:${bandText(achievePct)}">${achievePct}%</span>
+        </div>
+      </td>`;
+    } else {
+      totalRowHtml += `<td class="target-cell daily-total-cell empty">&mdash;</td>`;
+    }
     trTotal.innerHTML = totalRowHtml;
     tbody.appendChild(trTotal);
+    groupWeekSums[g.key] = { dayVals, weekSum };
+
+    // Combined Ready Mix row: Line 1 + Line 2 together, checked against the
+    // single combined Ready Mix target (management sets one number for both).
+    if(g.key === 'readymix_l2'){
+      const l1 = groupWeekSums['readymix_l1'] || { dayVals:{}, weekSum:0 };
+      const l2 = groupWeekSums['readymix_l2'] || { dayVals:{}, weekSum:0 };
+      const trCombine = document.createElement('tr');
+      trCombine.className = 'daily-total-row combine-row';
+      let combineHtml = `<td class="daily-total-head" colspan="2">Ready Mix Total<br>(Line 1 + Line 2)</td>`;
+      let combineWeekSum = 0;
+      days.forEach(day=>{
+        const daySum = (l1.dayVals[day]||0) + (l2.dayVals[day]||0);
+        combineWeekSum += daySum;
+        if(daySum>0){
+          combineHtml += `<td class="daily-total-cell"><div class="split-row"><span class="split-val">${fmt(daySum)}</span></div></td>`;
+        } else {
+          combineHtml += `<td class="daily-total-cell empty">&mdash;</td>`;
+        }
+      });
+      combineHtml += `<td class="total-cell daily-total-cell"><div class="split-row"><span class="split-val">${fmt(combineWeekSum)}</span></div></td>`;
+      const rmTarget = weekTargets['readymix'];
+      if(rmTarget !== undefined && rmTarget !== null){
+        const achievePct = Math.round((combineWeekSum/rmTarget)*1000)/10;
+        combineHtml += `<td class="target-cell daily-total-cell" style="background:${bandBgSolid(achievePct)};">
+          <div class="split-row">
+            <span class="split-val" style="color:${bandText(achievePct)}">${fmt(rmTarget)}</span>
+            <span class="split-div"></span>
+            <span class="split-pct" style="color:${bandText(achievePct)}">${achievePct}%</span>
+          </div>
+        </td>`;
+      } else {
+        combineHtml += `<td class="target-cell daily-total-cell empty">&mdash;</td>`;
+      }
+      trCombine.innerHTML = combineHtml;
+      tbody.appendChild(trCombine);
+    }
 
     // Spacer row between production lines
     if(gi < DATA.groups.length - 1){
       const trSpacer = document.createElement('tr');
       trSpacer.className = 'group-spacer';
-      trSpacer.innerHTML = `<td colspan="${3 + days.length}"></td>`;
+      trSpacer.innerHTML = `<td colspan="${4 + days.length}"></td>`;
       tbody.appendChild(trSpacer);
     }
   });
