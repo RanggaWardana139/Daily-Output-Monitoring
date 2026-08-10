@@ -65,7 +65,10 @@ td.cell{ padding:0; font-size:11px; min-width:100px; height:34px; }
 td.cell.empty{ color:var(--muted); opacity:0.35; padding:6px 3px; text-align:center; }
 td.total-cell{ background:var(--panel); font-weight:700; height:34px; padding:0; }
 td.target-cell{ background:var(--panel); font-weight:700; height:34px; padding:0; }
-td.target-cell.empty{ color:var(--muted); opacity:0.35; padding:6px 10px; text-align:center; font-weight:600; font-size:11.5px; }
+td.target-cell.empty{ color:var(--muted); opacity:0.35; padding:6px 10px; text-align:center; font-weight:600; font-size:12.5px; }
+.target-pct-only{ font-family:'Calibri','Segoe UI',Arial,sans-serif; font-weight:700; font-size:13.5px; }
+td.target-static-cell{ background:var(--brand-white); border-left:1px solid var(--line); color:var(--brand-dark-blue); font-weight:700; font-size:17px; text-align:center; vertical-align:middle; }
+td.target-static-cell.empty{ color:var(--muted); opacity:0.35; font-size:12.5px; font-weight:600; }
 tr.combine-row td.daily-total-head{ font-style:italic; color:var(--steel); }
 tr.combine-row td{ background:var(--panel-2); }
 tr.combine-row td.target-cell{ background-blend-mode:normal; }
@@ -471,6 +474,10 @@ function render(){
   DATA.groups.forEach((g, gi)=>{
     const cellsForGroup = DATA.cells[String(w)][g.key] || {};
     const totalsForGroup = DATA.rowTotals[String(w)][g.key] || {};
+    const targetKey = (g.key==='readymix_l1' || g.key==='readymix_l2') ? null : g.key;
+    const weekTargets = (DATA.weeklyTargets && DATA.weeklyTargets[w]) || {};
+    const realTarget = targetKey ? weekTargets[targetKey] : undefined;
+    const hasRealTarget = realTarget !== undefined && realTarget !== null;
     [1,2,3].forEach((shift, si)=>{
       const tr = document.createElement('tr');
       let rowHtml = '';
@@ -506,9 +513,15 @@ function render(){
       } else {
         rowHtml += `<td class="total-cell empty">&mdash;</td>`;
       }
-      // Weekly Target is a line-level concept (real management target),
-      // not a per-shift one — only the Daily Total / combined rows show it.
-      rowHtml += `<td class="target-cell empty">&mdash;</td>`;
+      // Weekly Target is a line-level concept (real management target), not
+      // a per-shift one — shown once, spanning the 3 shift rows.
+      if(si===0){
+        if(hasRealTarget){
+          rowHtml += `<td class="target-static-cell" rowspan="3">${fmt(realTarget)}</td>`;
+        } else {
+          rowHtml += `<td class="target-static-cell empty" rowspan="3">&mdash;</td>`;
+        }
+      }
 
       tr.innerHTML = rowHtml;
       tbody.appendChild(tr);
@@ -554,20 +567,14 @@ function render(){
       totalRowHtml += `<td class="total-cell daily-total-cell empty">&mdash;</td>`;
     }
 
-    // Weekly Target: real management figure from the WeeklyTargets sheet.
-    // Ready Mix Line 1 / Line 2 don't get an individual target — theirs is
-    // combined into the "Ready Mix Total" row added right after Line 2.
-    const targetKey = (g.key==='readymix_l1' || g.key==='readymix_l2') ? null : g.key;
-    const weekTargets = (DATA.weeklyTargets && DATA.weeklyTargets[w]) || {};
-    const realTarget = targetKey ? weekTargets[targetKey] : undefined;
-    if(realTarget !== undefined && realTarget !== null){
+    // Weekly Target column here shows only the achievement % against the
+    // real target (the raw target number itself is shown once, spanning
+    // the 3 shift rows above). Ready Mix Line 1 / Line 2 don't get an
+    // individual target — theirs is combined into the "Ready Mix Total" row.
+    if(hasRealTarget){
       const achievePct = Math.round((weekSum/realTarget)*1000)/10;
       totalRowHtml += `<td class="target-cell daily-total-cell" style="background:${bandBgSolid(achievePct)};">
-        <div class="split-row">
-          <span class="split-val" style="color:${bandText(achievePct)}">${fmt(realTarget)}</span>
-          <span class="split-div"></span>
-          <span class="split-pct" style="color:${bandText(achievePct)}">${achievePct}%</span>
-        </div>
+        <span class="target-pct-only" style="color:${bandText(achievePct)}">${achievePct}%</span>
       </td>`;
     } else {
       totalRowHtml += `<td class="target-cell daily-total-cell empty">&mdash;</td>`;
@@ -600,9 +607,9 @@ function render(){
         const achievePct = Math.round((combineWeekSum/rmTarget)*1000)/10;
         combineHtml += `<td class="target-cell daily-total-cell" style="background:${bandBgSolid(achievePct)};">
           <div class="split-row">
-            <span class="split-val" style="color:${bandText(achievePct)}">${fmt(rmTarget)}</span>
+            <span class="split-val" style="color:${bandText(achievePct)}; font-size:13px;">${fmt(rmTarget)}</span>
             <span class="split-div"></span>
-            <span class="split-pct" style="color:${bandText(achievePct)}">${achievePct}%</span>
+            <span class="split-pct" style="color:${bandText(achievePct)}; font-size:13px;">${achievePct}%</span>
           </div>
         </td>`;
       } else {
