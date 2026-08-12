@@ -41,7 +41,7 @@ body{ background:var(--bg); color:var(--text); font-family:'Calibri','Segoe UI',
   .brand-logo{ position:static; transform:none; }
 }
 
-.wrap{ max-width:1400px; margin:0 auto; padding:22px 28px 60px; overflow-x:auto; }
+.wrap{ max-width:1400px; margin:0 auto; padding:22px 28px 60px; }
 
 table.matrix{ border-collapse:separate; border-spacing:0; width:100%; min-width:1100px; }
 table.matrix th, table.matrix td{ border:1px solid var(--line); padding:0; text-align:center; }
@@ -64,6 +64,11 @@ td.shifthead{
 td.cell{ padding:0; font-size:11px; min-width:100px; height:34px; }
 td.cell.empty{ color:var(--muted); opacity:0.35; padding:6px 3px; text-align:center; }
 td.total-cell{ background:var(--panel); font-weight:700; height:34px; padding:0; }
+td.shipment-cell{ padding:6px 4px; vertical-align:top; text-align:center; height:auto; }
+.shipment-list{ display:flex; flex-direction:column; gap:4px; }
+.shipment-item{ background:var(--brand-white); border:1px solid var(--line); border-radius:4px; padding:5px 6px; font-size:10.5px; color:var(--text); font-weight:600; }
+td.cell.plan-cell, td.total-cell.plan-cell{ color:var(--muted); font-style:italic; font-weight:600; font-size:12px; }
+td.cell.actual-cell, td.total-cell.actual-cell{ color:var(--brand-dark-blue); font-weight:700; font-size:12.5px; }
 td.target-cell{ background:var(--panel); font-weight:700; height:34px; padding:0; }
 td.target-cell.empty{ color:var(--muted); opacity:0.35; padding:6px 10px; text-align:center; font-weight:600; font-size:12.5px; }
 .target-pct-only{ font-family:'Calibri','Segoe UI',Arial,sans-serif; font-weight:700; font-size:13.5px; }
@@ -113,7 +118,9 @@ footer{ text-align:center; color:var(--muted); font-size:11px; padding:20px 0 30
 
 <div class="wrap">
   <div id="statusBar" style="text-align:center; padding:10px; font-size:12.5px; color:var(--muted);"></div>
-  <table class="matrix" id="matrixTable"></table>
+  <div class="table-scroll">
+    <table class="matrix" id="matrixTable"></table>
+  </div>
   <div class="legend-row">
     <span><span class="sw" style="background:#CBE8D9; border:1px solid #6FAE8D"></span>&ge;100% of target</span>
     <span><span class="sw" style="background:#F5E6BE; border:1px solid #C9A227"></span>85&ndash;99%</span>
@@ -122,7 +129,7 @@ footer{ text-align:center; color:var(--muted); font-size:11px; padding:20px 0 30
   </div>
 </div>
 
-<footer>Cell shows output (kg) and % of that shift's target · Week total = sum for the week, % = average of days logged</footer>
+<footer>Cell shows output and % of that shift's target (kg, or pcs for Bag Making) · Week total = sum for the week, % = average of days logged<br><span style="opacity:0.5;">Build v12</span></footer>
 
 <script>
 let DATA = null;
@@ -159,6 +166,10 @@ const SOURCES = [
   { key:'woodline',   label:'F1 - Crusher Wood Charcoal',          target:6000,  url:'https://docs.google.com/spreadsheets/d/e/2PACX-1vTSFb8mibeLxtTRWAllYDxiUr6RT0ezSeMRxvEObufk-EIKTQjibnLq9R3d4hbQcDbIf9fvkbmm-TDK/pub?gid=143607530&single=true&output=csv', cols:{week:0,date:1,shift:2,val:5} },
   { key:'readymix',   label:null, target:20000, isReadyMix:true, url:'https://docs.google.com/spreadsheets/d/e/2PACX-1vTSFb8mibeLxtTRWAllYDxiUr6RT0ezSeMRxvEObufk-EIKTQjibnLq9R3d4hbQcDbIf9fvkbmm-TDK/pub?gid=560704222&single=true&output=csv', cols:{week:0,date:1,shift:2,line:3,val:5} },
   { key:'briquettes', label:'Briquettes Line Factory 2',           target:32000, url:'https://docs.google.com/spreadsheets/d/e/2PACX-1vTSFb8mibeLxtTRWAllYDxiUr6RT0ezSeMRxvEObufk-EIKTQjibnLq9R3d4hbQcDbIf9fvkbmm-TDK/pub?gid=1694376471&single=true&output=csv', cols:{week:0,date:1,shift:2,val:4} },
+  { key:'bagmaking',  label:'F3 - Bag Making', target:null, unit:'pcs', noShifts:true, url:'https://docs.google.com/spreadsheets/d/e/2PACX-1vTSFb8mibeLxtTRWAllYDxiUr6RT0ezSeMRxvEObufk-EIKTQjibnLq9R3d4hbQcDbIf9fvkbmm-TDK/pub?gid=808318571&single=true&output=csv', cols:{week:0,date:2,planning:3,val:4} },
+  { key:'packing',    label:null, target:25000, isPackingLine:true, url:'https://docs.google.com/spreadsheets/d/e/2PACX-1vTSFb8mibeLxtTRWAllYDxiUr6RT0ezSeMRxvEObufk-EIKTQjibnLq9R3d4hbQcDbIf9fvkbmm-TDK/pub?gid=1228034420&single=true&output=csv', cols:{week:0,date:1,shift:2,line:3,val:4} },
+  { key:'sizing',      label:'Lump Wood Sizing Line', target:6500, deriveWeekFromDate:true, url:'https://docs.google.com/spreadsheets/d/e/2PACX-1vTSFb8mibeLxtTRWAllYDxiUr6RT0ezSeMRxvEObufk-EIKTQjibnLq9R3d4hbQcDbIf9fvkbmm-TDK/pub?gid=133627487&single=true&output=csv', cols:{date:0,shift:1,val:2} },
+  { key:'containers', label:'Containers Shipment', isShipment:true, deriveWeekFromDate:true, fullContainerCol:3, url:'https://docs.google.com/spreadsheets/d/e/2PACX-1vTSFb8mibeLxtTRWAllYDxiUr6RT0ezSeMRxvEObufk-EIKTQjibnLq9R3d4hbQcDbIf9fvkbmm-TDK/pub?gid=2113648910&single=true&output=csv', cols:{week:0,date:1,product:2} },
 ];
 
 // Wide-format weekly targets sheet: one row per week, one column per line.
@@ -172,33 +183,66 @@ const GROUP_ORDER = [
   { key:'readymix_l1', label:'F2 - Ready Mix Line 1',            target:20000 },
   { key:'readymix_l2', label:'F2 - Ready Mix Line 2',            target:20000 },
   { key:'briquettes',  label:'Briquettes Line Factory 2',        target:32000 },
+  { key:'bagmaking',   label:'F3 - Bag Making',                  target:null, unit:'pcs', noShifts:true },
+  { key:'packing_l1',  label:'F4 - Briquettes Packing Line 1',   target:25000, noWeeklyTarget:true },
+  { key:'packing_l2',  label:'F4 - Briquettes Packing Line 2',   target:25000, noWeeklyTarget:true },
+  { key:'packing_l3',  label:'F4 - Lump Wood Packing Line 3',    target:7500,  noWeeklyTarget:true },
+  { key:'sizing',      label:'Lump Wood Sizing Line',             target:6500 },
+  { key:'containers',  label:'Containers Shipment',              isShipment:true },
 ];
 
 const BASE_MONDAY_UTC = Date.UTC(2025, 11, 29); // canonical Monday for week 1
-const MONTH_ABBR = {jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
+const MONTH_ABBR = {
+  jan:0, feb:1, mar:2, apr:3, may:4, mei:4, jun:5, jun_i:5, jul:6, jul_i:6,
+  aug:7, agu:7, ags:7, sep:8, sept:8, oct:9, okt:9, nov:10, des:11, dec:11
+};
 
 function canonicalMondayUTC(week){ return BASE_MONDAY_UTC + (week-1)*7*86400000; }
 
-// Parse dates like "2-Jan-2026", "30 May-2026", or ambiguous "8/4/2026" /
-// "10/07/2026" slash dates. For slash dates, tries both day/month orderings
-// and picks whichever lands inside (or near) the row's reported week window,
-// since the sheet mixes both conventions.
-function parseProdDate(raw, week){
+// Converts a "YYWW" code (e.g. 2602 = week 2 of 2026) into an approximate
+// week number on OUR internal Monday-anchored scale — used only as a rough
+// hint for resolving ambiguous slash dates, never as the final week bucket.
+function yywwToHintWeek(code){
+  const s = String(code||'').trim();
+  const m = s.match(/^(\d{2})(\d{2})$/);
+  if(!m) return null;
+  const year = 2000 + parseInt(m[1]);
+  const wk = parseInt(m[2]);
+  const jan1 = Date.UTC(year,0,1);
+  const jan1Dow = new Date(jan1).getUTCDay();
+  const daysToMonday = (jan1Dow===0) ? 1 : (jan1Dow===1 ? 0 : 8-jan1Dow);
+  const firstMonday = jan1 + daysToMonday*86400000;
+  const approxMondayUTC = firstMonday + (wk-1)*7*86400000;
+  return 1 + Math.floor((approxMondayUTC - BASE_MONDAY_UTC)/(7*86400000));
+}
+
+// Parse dates like "2-Jan-2026", "13-Jan-26", "04-Agu-26" (Indonesian month
+// abbreviations included), or ambiguous "8/4/2026" / "01/13/2026" slash
+// dates. For slash dates, tries both day/month orderings and picks whichever
+// lands inside (or near) the row's hinted week window — unless
+// preferMonthFirst is set, which skips the guesswork for sources already
+// confirmed to consistently use MM/DD (e.g. rows like "01/13" are only
+// valid as MM/DD, since day 01 / month 13 doesn't exist).
+function parseProdDate(raw, week, preferMonthFirst){
   if(!raw) return null;
   const s = String(raw).trim();
-  let m = s.match(/^(\d{1,2})[\s\-]([A-Za-z]{3,})[\s\-](\d{4})$/);
+  let m = s.match(/^(\d{1,2})[\s\-]([A-Za-z]{3,})[\s\-](\d{2,4})$/);
   if(m){
     const day = parseInt(m[1]);
     const mon = MONTH_ABBR[m[2].slice(0,3).toLowerCase()];
-    const year = parseInt(m[3]);
+    let year = parseInt(m[3]);
+    if(year < 100) year += 2000;
     if(mon===undefined) return null;
     return Date.UTC(year, mon, day);
   }
-  m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
   if(m){
-    const a = parseInt(m[1]), b = parseInt(m[2]), year = parseInt(m[3]);
+    const a = parseInt(m[1]), b = parseInt(m[2]);
+    let year = parseInt(m[3]);
+    if(year < 100) year += 2000;
     const candA = Date.UTC(year, a-1, b); // month/day
     const candB = Date.UTC(year, b-1, a); // day/month
+    if(preferMonthFirst) return candA;
     if(week){
       const cmon = canonicalMondayUTC(week);
       const lo = cmon - 5*86400000, hi = cmon + 11*86400000; // generous window
@@ -213,12 +257,21 @@ function parseProdDate(raw, week){
   return isNaN(generic) ? null : generic;
 }
 
-async function fetchCsvRows(url){
-  const res = await fetch(url);
-  if(!res.ok) throw new Error('HTTP '+res.status);
-  const text = await res.text();
-  const parsed = Papa.parse(text, {skipEmptyLines:false});
-  return parsed.data;
+async function fetchCsvRows(url, retries=2){
+  let lastErr;
+  for(let attempt=0; attempt<=retries; attempt++){
+    try{
+      const res = await fetch(url);
+      if(!res.ok) throw new Error('HTTP '+res.status);
+      const text = await res.text();
+      const parsed = Papa.parse(text, {skipEmptyLines:false});
+      return parsed.data;
+    }catch(e){
+      lastErr = e;
+      if(attempt<retries) await new Promise(r=>setTimeout(r, 600*(attempt+1)));
+    }
+  }
+  throw lastErr;
 }
 
 // Maps a header cell like "Screening" / "Crushing Candle Nut" / "Ready Mix"
@@ -232,6 +285,7 @@ function headerToTargetKey(h){
   if(s.includes('briquette')) return 'briquettes';
   if(s.includes('crush') || s.includes('candle')) return 'cruiser';
   if(s.includes('wood')) return 'woodline';
+  if(s.includes('bag')) return 'bagmaking';
   return null;
 }
 
@@ -274,27 +328,74 @@ function parseWeeklyTargets(rows){
   return out;
 }
 
-function processSource(source, rows, out){
+function processSource(source, rows, out, dayTargetsOut, shipmentsOut){
   const c = source.cols;
   let headerIdx = -1;
   for(let i=0;i<rows.length;i++){
-    const cell = (rows[i][c.week]||'').toString().trim().toLowerCase();
-    if(cell.startsWith('week')){ headerIdx = i; break; }
+    if(source.deriveWeekFromDate && c.week===undefined){
+      const cell = (rows[i][c.date]||'').toString().trim().toLowerCase();
+      if(cell.startsWith('production')){ headerIdx = i; break; }
+    } else {
+      const cell = (rows[i][c.week]||'').toString().trim().toLowerCase();
+      if(cell.startsWith('week')){ headerIdx = i; break; }
+    }
   }
   if(headerIdx===-1) throw new Error('Header row not found for '+source.key);
+
+  // Containers Shipment: one row per container, no numeric value — just a
+  // product name per date. Kept in its own side-channel (shipmentsOut)
+  // rather than the numeric cellSums pipeline.
+  if(source.isShipment){
+    for(let i=headerIdx+1;i<rows.length;i++){
+      const r = rows[i];
+      if(!r || r.length===0) continue;
+      if(source.fullContainerCol!==undefined){
+        const fc = (r[source.fullContainerCol]||'').toString().trim();
+        if(fc !== '1') continue; // only single-product ("full container") shipments
+      }
+      const rawWeekCode = c.week!==undefined ? (r[c.week]||'').toString().trim() : '';
+      const rawDate = (r[c.date]||'').toString().trim();
+      const product = (r[c.product]||'').toString().trim();
+      if(!rawDate || !product || product==='#N/A') continue;
+
+      const hintWeek = rawWeekCode ? yywwToHintWeek(rawWeekCode) : null;
+      let dUTC = parseProdDate(rawDate, hintWeek, true);
+      if(dUTC===null) continue;
+      let dt = new Date(dUTC);
+      if(dt.getUTCFullYear() >= 2900){
+        dUTC = Date.UTC(dt.getUTCFullYear()-1000, dt.getUTCMonth(), dt.getUTCDate());
+        dt = new Date(dUTC);
+      }
+      if(dUTC < Date.UTC(2025,10,1) || dUTC > Date.UTC(2026,8,1)) continue;
+
+      // Week bucket comes from the resolved date itself (Monday-anchored),
+      // not the sheet's own week code — that code is only used as a hint
+      // above for resolving ambiguous slash dates.
+      const effWeek = 1 + Math.floor((dUTC - BASE_MONDAY_UTC)/(7*86400000));
+      const dateStr = dt.toISOString().slice(0,10);
+      shipmentsOut[effWeek] = shipmentsOut[effWeek] || {};
+      shipmentsOut[effWeek][dateStr] = shipmentsOut[effWeek][dateStr] || [];
+      shipmentsOut[effWeek][dateStr].push(product);
+    }
+    return;
+  }
 
   for(let i=headerIdx+1;i<rows.length;i++){
     const r = rows[i];
     if(!r || r.length===0) continue;
-    const rawWeek = (r[c.week]||'').toString().trim();
+    const rawWeek = (source.deriveWeekFromDate ? '' : (r[c.week]||'')).toString().trim();
     const rawDate = (r[c.date]||'').toString().trim();
-    const rawShift = (r[c.shift]||'').toString().trim();
-    const rawVal = (r[c.val]||'').toString().trim();
-    if(!rawDate || !rawShift || rawVal==='') continue;
+    const rawShift = source.noShifts ? '1' : (r[c.shift]||'').toString().trim();
+    const rawVal = (r[c.val]||'').toString().trim().replace(/,/g,'');
+    if(!rawDate || (!source.noShifts && !rawShift) || rawVal==='') continue;
     const val = parseFloat(rawVal);
     if(isNaN(val)) continue;
-    const week = parseInt(rawWeek);
-    if(isNaN(week)) continue;
+
+    let week = null;
+    if(!source.deriveWeekFromDate){
+      week = parseInt(rawWeek);
+      if(isNaN(week)) continue;
+    }
 
     let dUTC = parseProdDate(rawDate, week);
     if(dUTC===null) continue;
@@ -306,35 +407,54 @@ function processSource(source, rows, out){
       dt = new Date(dUTC);
     }
 
-    // fix week-boundary drift: a Sunday tagged as belonging to the *next*
-    // Monday-Sunday week actually belongs to the previous week's Sunday
-    let effWeek = week;
-    let cmon = canonicalMondayUTC(effWeek);
-    if(dUTC === cmon - 86400000){
-      effWeek = effWeek - 1;
-      cmon = canonicalMondayUTC(effWeek);
+    let effWeek;
+    if(source.deriveWeekFromDate){
+      // No trustworthy week column at all — the date itself is the source
+      // of truth for which Monday-Sunday week this row belongs to.
+      effWeek = 1 + Math.floor((dUTC - BASE_MONDAY_UTC)/(7*86400000));
+    } else {
+      // fix week-boundary drift: a Sunday tagged as belonging to the *next*
+      // Monday-Sunday week actually belongs to the previous week's Sunday
+      effWeek = week;
+      let cmon = canonicalMondayUTC(effWeek);
+      if(dUTC === cmon - 86400000){
+        effWeek = effWeek - 1;
+      }
     }
 
     // drop genuine stray rows: a full year (or more) outside the reporting window
     if(dUTC < Date.UTC(2025,10,1) || dUTC > Date.UTC(2026,8,1)) continue;
 
-    const shift = String(parseInt(rawShift));
+    const shift = source.noShifts ? '1' : String(parseInt(rawShift));
     const value = Math.ceil(val);
     const dateStr = dt.toISOString().slice(0,10);
 
     let gkey = source.key;
-    if(source.isReadyMix){
+    if(source.isReadyMix || source.isPackingLine){
       const line = parseInt((r[c.line]||'').toString().trim());
-      if(line===3) continue; // Ready Mix Line 3 no longer displayed
-      if(line!==1 && line!==2) continue;
-      gkey = 'readymix_l'+line;
+      if(source.isReadyMix && line===3) continue; // Ready Mix Line 3 no longer displayed
+      if(line<1 || line>3) continue;
+      gkey = (source.isReadyMix ? 'readymix_l' : 'packing_l') + line;
     }
 
     out.push([gkey, effWeek, shift, dateStr, value]);
+
+    // Bag Making (and any future no-shift line): capture that day's own
+    // Planning value as its target, instead of relying on a fixed constant.
+    if(source.noShifts && c.planning!==undefined){
+      const rawPlan = (r[c.planning]||'').toString().trim().replace(/,/g,'');
+      const planVal = parseFloat(rawPlan);
+      if(!isNaN(planVal)){
+        dayTargetsOut[effWeek] = dayTargetsOut[effWeek] || {};
+        dayTargetsOut[effWeek][gkey] = dayTargetsOut[effWeek][gkey] || {};
+        dayTargetsOut[effWeek][gkey][dateStr] = Math.ceil(planVal);
+      }
+    }
   }
 }
 
-function buildData(rows){
+function buildData(rows, dayTargets){
+  dayTargets = dayTargets || {};
   const cellSums = {}; // week -> gkey -> shift -> date -> sum
   for(const [gkey, week, shift, dateStr, value] of rows){
     cellSums[week] = cellSums[week] || {};
@@ -352,23 +472,41 @@ function buildData(rows){
     for(const g of GROUP_ORDER){
       const shiftsData = (cellSums[w]||{})[g.key] || {'1':{}, '2':{}, '3':{}};
       cells[ws][g.key] = {}; rowTotals[ws][g.key] = {};
-      for(const shift of ['1','2','3']){
+      const shiftsToProcess = g.noShifts ? ['1'] : ['1','2','3'];
+      for(const shift of shiftsToProcess){
         const dayVals = shiftsData[shift] || {};
         const dayCells = {};
-        let total = 0, ndays = 0;
+        let total = 0, ndays = 0, targetSum = 0, targetDays = 0;
         for(const dateStr of Object.keys(dayVals).sort()){
           const v = Math.round(dayVals[dateStr]);
-          const pct = Math.round((v/g.target*100)*10)/10;
-          dayCells[dateStr] = {value:v, pct:pct};
+          let pct, dTarget = null;
+          if(g.noShifts){
+            dTarget = (dayTargets[w] && dayTargets[w][g.key] && dayTargets[w][g.key][dateStr]) || null;
+            pct = dTarget ? Math.round((v/dTarget*100)*10)/10 : null;
+            if(dTarget){ targetSum += dTarget; targetDays++; }
+          } else {
+            pct = Math.round((v/g.target*100)*10)/10;
+          }
+          dayCells[dateStr] = {value:v, pct:pct, target:(g.noShifts?dTarget:undefined)};
           total += v; ndays += 1;
         }
         cells[ws][g.key][shift] = dayCells;
         if(ndays>0){
-          const pctTotal = Math.round((total/(g.target*ndays)*100)*10)/10;
-          rowTotals[ws][g.key][shift] = {total:total, pct:pctTotal, days:ndays};
+          let pctTotal;
+          if(g.noShifts){
+            pctTotal = targetDays>0 ? Math.round((total/targetSum*100)*10)/10 : null;
+          } else {
+            pctTotal = Math.round((total/(g.target*ndays)*100)*10)/10;
+          }
+          rowTotals[ws][g.key][shift] = {total:total, pct:pctTotal, days:ndays, targetSum:(g.noShifts?targetSum:undefined)};
         } else {
           rowTotals[ws][g.key][shift] = {total:null, pct:null, days:0};
         }
+      }
+      if(g.noShifts){
+        cells[ws][g.key]['2'] = {}; cells[ws][g.key]['3'] = {};
+        rowTotals[ws][g.key]['2'] = {total:null,pct:null,days:0};
+        rowTotals[ws][g.key]['3'] = {total:null,pct:null,days:0};
       }
     }
   }
@@ -376,9 +514,13 @@ function buildData(rows){
   return {
     allWeeks: allWeeks,
     weekDays: weekDays,
-    groups: GROUP_ORDER.map(g=>({key:g.key, label:g.label, target:g.target})),
+    groups: GROUP_ORDER.map(g=>({
+      key:g.key, label:g.label, target:g.target, unit:g.unit||'kg', noShifts:!!g.noShifts,
+      isShipment:!!g.isShipment, noWeeklyTarget:!!g.noWeeklyTarget, subtitleOverride:g.subtitleOverride
+    })),
     cells: cells,
     rowTotals: rowTotals,
+    dayTargetsRaw: dayTargets,
   };
 }
 
@@ -390,11 +532,14 @@ async function loadData(){
   statusBar.className = '';
   statusBar.textContent = 'Loading latest data from Google Sheets…';
   const allRows = [];
+  const dayTargets = {};
+  const shipments = {};
   const failed = [];
   for(const source of SOURCES){
+    if(!source.url) continue; // not set up yet — skip quietly, no error shown
     try{
       const rows = await fetchCsvRows(source.url);
-      processSource(source, rows, allRows);
+      processSource(source, rows, allRows, dayTargets, shipments);
     }catch(e){
       failed.push(source.key);
       console.error('Failed to load', source.key, e);
@@ -416,8 +561,9 @@ async function loadData(){
     statusBar.textContent = 'Could not load any data — check the Sheets are still published to web, or your network/sharing settings.';
     return;
   }
-  DATA = buildData(allRows);
+  DATA = buildData(allRows, dayTargets);
   DATA.weeklyTargets = weeklyTargets;
+  DATA.shipments = shipments;
   if(failed.length){
     statusBar.className = 'error';
     statusBar.textContent = 'Loaded, but could not reach: ' + failed.join(', ') + ' — showing the other lines only.';
@@ -472,17 +618,128 @@ function render(){
   const groupWeekSums = {};
 
   DATA.groups.forEach((g, gi)=>{
+    // Containers Shipment: a list of what shipped each day, not a number.
+    // One row of stacked product boxes, then a Daily Total row with counts.
+    if(g.isShipment){
+      const shipForWeek = (DATA.shipments && DATA.shipments[w]) || {};
+      const trList = document.createElement('tr');
+      let listHtml = `<td class="rowhead" colspan="2" style="text-align:center;">${g.label}</td>`;
+      let weekCount = 0;
+      days.forEach(day=>{
+        const items = shipForWeek[day] || [];
+        weekCount += items.length;
+        if(items.length){
+          listHtml += `<td class="shipment-cell"><div class="shipment-list">` +
+            items.map(p=>`<div class="shipment-item">${p}</div>`).join('') +
+            `</div></td>`;
+        } else {
+          listHtml += `<td class="cell empty">&mdash;</td>`;
+        }
+      });
+      listHtml += `<td class="total-cell empty">&mdash;</td>`;
+      listHtml += `<td class="target-cell empty" rowspan="2">&mdash;</td>`;
+      trList.innerHTML = listHtml;
+      tbody.appendChild(trList);
+
+      const trTotal = document.createElement('tr');
+      trTotal.className = 'daily-total-row';
+      let totalHtml = `<td class="daily-total-head" colspan="2">Daily Total</td>`;
+      days.forEach(day=>{
+        const n = (shipForWeek[day] || []).length;
+        totalHtml += n>0 ? `<td class="daily-total-cell actual-cell">${n} Container${n===1?'':'s'}</td>` : `<td class="daily-total-cell empty">&mdash;</td>`;
+      });
+      totalHtml += weekCount>0 ? `<td class="total-cell daily-total-cell actual-cell">${weekCount} Container${weekCount===1?'':'s'}</td>` : `<td class="total-cell daily-total-cell empty">&mdash;</td>`;
+      trTotal.innerHTML = totalHtml;
+      tbody.appendChild(trTotal);
+
+      if(gi < DATA.groups.length - 1){
+        const trSpacer = document.createElement('tr');
+        trSpacer.className = 'group-spacer';
+        trSpacer.innerHTML = `<td colspan="${4 + days.length}"></td>`;
+        tbody.appendChild(trSpacer);
+      }
+      return;
+    }
+
     const cellsForGroup = DATA.cells[String(w)][g.key] || {};
     const totalsForGroup = DATA.rowTotals[String(w)][g.key] || {};
     const targetKey = (g.key==='readymix_l1' || g.key==='readymix_l2') ? null : g.key;
     const weekTargets = (DATA.weeklyTargets && DATA.weeklyTargets[w]) || {};
-    const realTarget = targetKey ? weekTargets[targetKey] : undefined;
+    let realTarget;
+    if(g.noWeeklyTarget){
+      realTarget = undefined;
+    } else if(g.noShifts){
+      const tot1 = totalsForGroup['1'];
+      realTarget = (tot1 && tot1.targetSum) ? tot1.targetSum : undefined;
+    } else {
+      realTarget = targetKey ? weekTargets[targetKey] : undefined;
+    }
     const hasRealTarget = realTarget !== undefined && realTarget !== null;
-    [1,2,3].forEach((shift, si)=>{
+
+    // Bag Making: no shifts, and the "target" is a per-day Planning figure
+    // rather than a fixed number — shown as 3 rows (Daily Plan / Actual
+    // output / Percentage) instead of the usual Shift 1/2/3 + Daily Total.
+    if(g.noShifts){
+      const tot1 = totalsForGroup['1'] || {total:null, pct:null, days:0, targetSum:0};
+      const rowDefs = [
+        { label:'Daily Plan', kind:'plan' },
+        { label:'Actual Output', kind:'actual' },
+        { label:'Percentage', kind:'pct' },
+      ];
+      rowDefs.forEach((rd, ri)=>{
+        const tr = document.createElement('tr');
+        let rowHtml = '';
+        if(ri===0){
+          rowHtml += `<td class="rowhead" rowspan="3">${g.label}<div style="font-weight:400; color:var(--muted); font-size:13px; margin-top:3px;">Daily Target depend on bag size</div></td>`;
+        }
+        rowHtml += `<td class="shifthead">${rd.label}</td>`;
+        days.forEach(day=>{
+          const rec = (cellsForGroup['1'] || {})[day];
+          const dTarget = (rec && rec.target!==undefined && rec.target!==null) ? rec.target
+            : ((DATA.dayTargetsRaw && DATA.dayTargetsRaw[w] && DATA.dayTargetsRaw[w][g.key] && DATA.dayTargetsRaw[w][g.key][day]) || null);
+          if(rd.kind==='plan'){
+            rowHtml += dTarget!==null ? `<td class="cell plan-cell">${fmt(dTarget)}</td>` : `<td class="cell empty">&mdash;</td>`;
+          } else if(rd.kind==='actual'){
+            rowHtml += rec ? `<td class="cell actual-cell">${fmt(rec.value)}</td>` : `<td class="cell empty">&mdash;</td>`;
+          } else {
+            if(rec && rec.pct!==null){
+              rowHtml += `<td class="cell" style="background:${bandBgSolid(rec.pct)};"><span class="target-pct-only" style="color:${bandText(rec.pct)}">${rec.pct}%</span></td>`;
+            } else {
+              rowHtml += `<td class="cell empty">&mdash;</td>`;
+            }
+          }
+        });
+        if(rd.kind==='plan'){
+          rowHtml += tot1.targetSum ? `<td class="total-cell plan-cell">${fmt(tot1.targetSum)}</td>` : `<td class="total-cell empty">&mdash;</td>`;
+        } else if(rd.kind==='actual'){
+          rowHtml += (tot1.total!==null) ? `<td class="total-cell actual-cell">${fmt(tot1.total)}</td>` : `<td class="total-cell empty">&mdash;</td>`;
+        } else {
+          rowHtml += (tot1.pct!==null) ? `<td class="total-cell" style="background:${bandBgSolid(tot1.pct)};"><span class="target-pct-only" style="color:${bandText(tot1.pct)}">${tot1.pct}%</span></td>` : `<td class="total-cell empty">&mdash;</td>`;
+        }
+        if(ri===0){
+          rowHtml += hasRealTarget
+            ? `<td class="target-static-cell" rowspan="3">${fmt(realTarget)}</td>`
+            : `<td class="target-static-cell empty" rowspan="3">&mdash;</td>`;
+        }
+        tr.innerHTML = rowHtml;
+        tbody.appendChild(tr);
+      });
+      if(gi < DATA.groups.length - 1){
+        const trSpacer = document.createElement('tr');
+        trSpacer.className = 'group-spacer';
+        trSpacer.innerHTML = `<td colspan="${4 + days.length}"></td>`;
+        tbody.appendChild(trSpacer);
+      }
+      return;
+    }
+
+    const shiftList = [1,2,3];
+    shiftList.forEach((shift, si)=>{
       const tr = document.createElement('tr');
       let rowHtml = '';
       if(si===0){
-        rowHtml += `<td class="rowhead" rowspan="3">${g.label}<div style="font-weight:400; color:var(--muted); font-size:13px; margin-top:3px;">target ${fmt(g.target)} kg/shift</div></td>`;
+        const subtitle = g.subtitleOverride || `target ${fmt(g.target)} ${g.unit||'kg'}/shift`;
+        rowHtml += `<td class="rowhead" rowspan="${shiftList.length}">${g.label}<div style="font-weight:400; color:var(--muted); font-size:13px; margin-top:3px;">${subtitle}</div></td>`;
       }
       rowHtml += `<td class="shifthead">Shift ${shift}</td>`;
 
@@ -493,7 +750,7 @@ function render(){
             <div class="split-row">
               <span class="split-val" style="color:${bandText(rec.pct)}">${fmt(rec.value)}</span>
               <span class="split-div"></span>
-              <span class="split-pct" style="color:${bandText(rec.pct)}">${rec.pct}%</span>
+              <span class="split-pct" style="color:${bandText(rec.pct)}">${rec.pct===null?'&mdash;':rec.pct+'%'}</span>
             </div>
           </td>`;
         } else {
@@ -507,19 +764,19 @@ function render(){
           <div class="split-row">
             <span class="split-val" style="color:${bandText(tot.pct)}">${fmt(tot.total)}</span>
             <span class="split-div"></span>
-            <span class="split-pct" style="color:${bandText(tot.pct)}">${tot.pct}%</span>
+            <span class="split-pct" style="color:${bandText(tot.pct)}">${tot.pct===null?'&mdash;':tot.pct+'%'}</span>
           </div>
         </td>`;
       } else {
         rowHtml += `<td class="total-cell empty">&mdash;</td>`;
       }
       // Weekly Target is a line-level concept (real management target), not
-      // a per-shift one — shown once, spanning the 3 shift rows.
+      // a per-shift one — shown once, spanning the data rows for this line.
       if(si===0){
         if(hasRealTarget){
-          rowHtml += `<td class="target-static-cell" rowspan="3">${fmt(realTarget)}</td>`;
+          rowHtml += `<td class="target-static-cell" rowspan="${shiftList.length}">${fmt(realTarget)}</td>`;
         } else {
-          rowHtml += `<td class="target-static-cell empty" rowspan="3">&mdash;</td>`;
+          rowHtml += `<td class="target-static-cell empty" rowspan="${shiftList.length}">&mdash;</td>`;
         }
       }
 
